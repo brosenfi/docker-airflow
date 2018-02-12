@@ -1,0 +1,97 @@
+version: '3.1'
+
+services:
+
+    postgres:
+        image: postgres:9.6
+        environment:
+            - POSTGRES_USER=airflow
+            - POSTGRES_PASSWORD=airflow
+            - POSTGRES_DB=airflow
+        # Uncomment these lines to persist data on the local filesystem.
+        #     - PGDATA=/var/lib/postgresql/data/pgdata
+        # volumes:
+        #     - ./pgdata:/var/lib/postgresql/data/pgdata
+
+    dask-scheduler:
+        build: .
+        image: airflow-demo/docker-airflow:v1
+        ports:
+            - "8786:8786"
+            - "8787:8787"
+        entrypoint: ["/usr/local/bin/dumb-init", "/prepare.sh"]
+        command: ["dask-scheduler"]
+
+    dask-worker1:
+        build: .
+        image: airflow-demo/docker-airflow:v1
+        ports:
+            - "8789:8789"
+        entrypoint: ["/usr/local/bin/dumb-init", "/prepare.sh"]
+        command: ["dask-worker dask-scheduler:8786"]
+
+    dask-worker2:
+        build: .
+        image: airflow-demo/docker-airflow:v1
+        ports:
+            - "8790:8789"
+        entrypoint: ["/usr/local/bin/dumb-init", "/prepare.sh"]
+        command: ["dask-worker dask-scheduler:8786"]
+
+    webserver:
+        build: .
+        image: airflow-demo/docker-airflow:v1
+        restart: always
+        depends_on:
+            - postgres
+            - dask-scheduler
+        environment:
+            - LOAD_EX=n
+            - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+            - EXECUTOR=Dask
+            - AIRFLOW__DASK__CLUSTER_ADDRESS=dask-scheduler:8786
+            # - POSTGRES_USER=airflow
+            # - POSTGRES_PASSWORD=airflow
+            # - POSTGRES_DB=airflow
+            # - REDIS_PASSWORD=redispass
+        volumes:
+            - ./dags:/usr/local/airflow/dags
+            # Uncomment to include custom plugins 
+            # - ./plugins:/usr/local/airflow/plugins
+        ports:
+            - "8080:8080"
+        command: webserver
+        healthcheck:
+            test: ["CMD-SHELL", "[ -f /usr/local/airflow/airflow-webserver.pid ]"]
+            interval: 30s
+            timeout: 30s
+            retries: 3
+
+    scheduler:
+        build: .
+        image: airflow-demo/docker-airflow:v1
+        restart: always
+        depends_on:
+            - webserver
+        volumes:
+            - ./dags:/usr/local/airflow/dags
+            # Uncomment to include custom plugins 
+            # - ./plugins:/usr/local/airflow/plugins
+        environment:
+            - LOAD_EX=n
+            - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+            - EXECUTOR=Dask
+            - AIRFLOW__DASK__CLUSTER_ADDRESS=dask-scheduler:8786
+            # - POSTGRES_USER=airflow
+            # - POSTGRES_PASSWORD=airflow
+            # - POSTGRES_DB=airflow
+            # - REDIS_PASSWORD=redispass
+        command: scheduler
+
+    #notebook:
+    #    build: ./notebook
+    #    image: daskdev/dask-notebook
+    #    hostname: notebook
+    #    ports:
+    #        - "8888:8888"
+    #    command: "start.sh jupyter lab --NotebookApp.token=''"
