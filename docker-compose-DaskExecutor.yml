@@ -87,11 +87,3 @@ services:
             # - POSTGRES_DB=airflow
             # - REDIS_PASSWORD=redispass
         command: scheduler
-
-    #notebook:
-    #    build: ./notebook
-    #    image: daskdev/dask-notebook
-    #    hostname: notebook
-    #    ports:
-    #        - "8888:8888"
-    #    command: "start.sh jupyter lab --NotebookApp.token=''"
