@@ -1,4 +1,4 @@
-version: '3.1'
+version: '3'
 
 services:
 
@@ -16,27 +16,43 @@ services:
     dask-scheduler:
         build: .
         image: airflow-demo/docker-airflow:v1
+        expose:
+            - "8786"
         ports:
-            - "8786:8786"
             - "8787:8787"
+        labels:
+            kompose.service.type: "nodeport"
+            kompose.service.expose: "true"
         entrypoint: ["/usr/local/bin/dumb-init", "/prepare.sh"]
         command: ["dask-scheduler"]
 
     dask-worker1:
         build: .
         image: airflow-demo/docker-airflow:v1
+        depends_on:
+            - dask-scheduler
         ports:
             - "8789:8789"
+            - "8791:8791"
+        labels:
+            kompose.service.type: "nodeport"
+            kompose.service.expose: "true"
         entrypoint: ["/usr/local/bin/dumb-init", "/prepare.sh"]
-        command: ["dask-worker dask-scheduler:8786"]
+        command: ["dask-worker --worker-port 8791 dask-scheduler:8786"]
 
     dask-worker2:
         build: .
         image: airflow-demo/docker-airflow:v1
+        depends_on:
+            - dask-scheduler
         ports:
             - "8790:8789"
+            - "8792:8792"
+        labels:
+            kompose.service.type: "nodeport"
+            kompose.service.expose: "true"
         entrypoint: ["/usr/local/bin/dumb-init", "/prepare.sh"]
-        command: ["dask-worker dask-scheduler:8786"]
+        command: ["dask-worker --worker-port 8792 dask-scheduler:8786"]
 
     webserver:
         build: .
@@ -60,6 +76,9 @@ services:
             # - ./plugins:/usr/local/airflow/plugins
         ports:
             - "8080:8080"
+        labels:
+            kompose.service.type: "nodeport"
+            kompose.service.expose: "true"
         command: webserver
         healthcheck:
             test: ["CMD-SHELL", "[ -f /usr/local/airflow/airflow-webserver.pid ]"]
@@ -72,6 +91,8 @@ services:
         image: airflow-demo/docker-airflow:v1
         restart: always
         depends_on:
+            - postgres
+            - dask-scheduler
             - webserver
         volumes:
             - ./dags:/usr/local/airflow/dags
